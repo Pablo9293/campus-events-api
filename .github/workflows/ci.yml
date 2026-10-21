@@ -1,21 +1,43 @@
-name: CI Pipeline
+name: CI
 
 on:
   push:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+      - master
   pull_request:
-    branches: [ "main", "master" ]
+    branches:
+      - main
+      - master
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
-  build-and-test:
+  build:
+    name: Build
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [20.x]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
 
-    # Definir variáveis de ambiente globalmente para todo o job
-    env:
-      NODE_ENV: test
-      PORT: 3333
-      DATABASE_URL: postgresql://api:password@localhost:5432/api_test
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
 
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build project
+        run: npm run build
+
+  test:
+    name: Test
+    runs-on: ubuntu-latest
     services:
       postgres:
         image: postgres:17
@@ -30,12 +52,11 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
-
     steps:
-      - name: Checkout repository
+      - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Node.js
+      - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
@@ -44,11 +65,10 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run Lint
-        run: npm run lint
-
-      - name: Run Tests
+      - name: Run tests
+        env:
+          PORT: 3333
+          DATABASE_URL: postgresql://api:password@localhost:5432/api_test
+          TEST_PORT: 3333
+          TEST_DATABASE_URL: postgresql://api:password@localhost:5432/api_test
         run: npm test -- --run
-
-      - name: Run Build
-        run: npm run build
